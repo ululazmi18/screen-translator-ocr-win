@@ -1,0 +1,7 @@
+pynput
+mss
+Pillow
+pywin32
+easyocr
+numpy
+googletrans==4.0.0rc1
