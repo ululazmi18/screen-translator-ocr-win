@@ -32,8 +32,8 @@ Sebelum menginstal aplikasi ini, pastikan sistem Anda telah terinstal:
 
 1. **Kloning Repositori**
    ```bash
-   git clone https://github.com/username/screen-translator-ocr.git
-   cd screen-translator-ocr
+   git clone https://github.com/ululazmi18/screen-translator-ocr-win.git
+   cd screen-translator-ocr-win
    ```
 
 2. **Instal Dependensi**
