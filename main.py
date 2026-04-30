@@ -1,8 +1,8 @@
 """
 Pemilih Persegi Panjang Tangkapan Layar + OCR + Terjemahan
 Tombol Pintas: Bebas (Kustom)
-Gratis, Luring, Tanpa Pendaftaran
-Stack: pynput + mss + tkinter + pywin32 + EasyOCR + googletrans
+Gratis, Luring (OCR), Tanpa Pendaftaran
+Stack: pynput + mss + tkinter + pywin32 + EasyOCR + RapidOCR + translators
 """
 
 import tkinter as tk
@@ -18,12 +18,15 @@ import warnings
 
 from pynput import keyboard
 from mss import MSS
-from PIL import Image, ImageTk
+from PIL import Image
 import win32gui as gw
 import win32con as gc
-import easyocr
-import numpy as np
-from googletrans import Translator, LANGUAGES
+
+# Modul berat akan di-import secara lazy (saat dibutuhkan) untuk mempercepat startup GUI
+# import easyocr
+# import numpy as np
+# from rapidocr_onnxruntime import RapidOCR
+# import translators as ts
 
 # Menyembunyikan peringatan CPU dari easyocr dan peringatan PyTorch
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -41,28 +44,66 @@ except Exception:
 # Data & Kamus Bahasa
 # ====================================================
 
-TRANS_LANGS = LANGUAGES
+TRANS_LANGS = {
+    'af': 'afrikaans', 'sq': 'albanian', 'ar': 'arabic', 'hy': 'armenian', 'az': 'azerbaijani',
+    'eu': 'basque', 'be': 'belarusian', 'bn': 'bengali', 'bs': 'bosnian', 'bg': 'bulgarian',
+    'ca': 'catalan', 'ceb': 'cebuano', 'ny': 'chichewa', 'zh-cn': 'chinese (simplified)',
+    'zh-tw': 'chinese (traditional)', 'co': 'corsican', 'hr': 'croatian', 'cs': 'czech',
+    'da': 'danish', 'nl': 'dutch', 'en': 'english', 'eo': 'esperanto', 'et': 'estonian',
+    'tl': 'filipino', 'fi': 'finnish', 'fr': 'french', 'fy': 'frisian', 'gl': 'galician',
+    'ka': 'georgian', 'de': 'german', 'el': 'greek', 'gu': 'gujarati', 'ht': 'haitian creole',
+    'ha': 'hausa', 'haw': 'hawaiian', 'he': 'hebrew', 'hi': 'hindi', 'hmn': 'hmong',
+    'hu': 'hungarian', 'is': 'icelandic', 'ig': 'igbo', 'id': 'indonesian', 'ga': 'irish',
+    'it': 'italian', 'ja': 'japanese', 'jw': 'javanese', 'kn': 'kannada', 'kk': 'kazakh',
+    'km': 'khmer', 'ko': 'korean', 'ku': 'kurdish', 'ky': 'kyrgyz', 'lo': 'lao',
+    'la': 'latin', 'lv': 'latvian', 'lt': 'lithuanian', 'lb': 'luxembourgish', 'mk': 'macedonian',
+    'mg': 'malagasy', 'ms': 'malay', 'ml': 'malayalam', 'mt': 'maltese', 'mi': 'maori',
+    'mr': 'marathi', 'mn': 'mongolian', 'my': 'myanmar', 'ne': 'nepali', 'no': 'norwegian',
+    'ps': 'pashto', 'fa': 'persian', 'pl': 'polish', 'pt': 'portuguese', 'pa': 'punjabi',
+    'ro': 'romanian', 'ru': 'russian', 'sm': 'samoan', 'gd': 'scots gaelic', 'sr': 'serbian',
+    'st': 'sesotho', 'sn': 'shona', 'sd': 'sindhi', 'si': 'sinhala', 'sk': 'slovak', 'sl': 'slovenian',
+    'so': 'somali', 'es': 'spanish', 'su': 'sundanese', 'sw': 'swahili', 'sv': 'swedish',
+    'tg': 'tajik', 'ta': 'tamil', 'te': 'telugu', 'th': 'thai', 'tr': 'turkish', 'uk': 'ukrainian',
+    'ur': 'urdu', 'uz': 'uzbek', 'vi': 'vietnamese', 'cy': 'welsh', 'xh': 'xhosa', 'yi': 'yiddish',
+    'yo': 'yoruba', 'zu': 'zulu'
+}
+
 TRANS_LANGS_FORMATTED = {k: v.title() for k, v in TRANS_LANGS.items()}
 
-EASYOCR_CODES = ['af', 'az', 'bs', 'cs', 'cy', 'da', 'de', 'en', 'es', 'et', 'fr', 'ga', 'hr', 'hu', 'id', 'is', 'it', 'ku', 'la', 'lt', 'lv', 'mi', 'ms', 'mt', 'nl', 'no', 'oc', 'pi', 'pl', 'pt', 'ro', 'rs_latin', 'sk', 'sl', 'sq', 'sv', 'sw', 'tl', 'tr', 'uz', 'vi', 'ar', 'fa', 'ug', 'ur', 'ru', 'rs_cyrillic', 'be', 'bg', 'uk', 'mn', 'abq', 'ady', 'kbd', 'ava', 'dar', 'inh', 'che', 'lbe', 'lez', 'tab', 'tjk', 'hi', 'mr', 'ne', 'bh', 'mai', 'ang', 'bho', 'mah', 'sck', 'new', 'gom', 'sa', 'bgc', 'bn', 'as', 'mni', 'th', 'ch_sim', 'ch_tra', 'ja', 'ko', 'ta', 'te', 'kn']
+# Untuk source language kita pakai dictionary yang sama
+SRC_LANGS_FORMATTED = TRANS_LANGS_FORMATTED.copy()
+# Tambahkan opsi auto untuk source language
+SRC_LANGS_FORMATTED['auto'] = 'Auto Detect'
 
-EASYOCR_LANGS = {}
-for code in EASYOCR_CODES:
-    if code in TRANS_LANGS:
-        EASYOCR_LANGS[code] = TRANS_LANGS[code].title()
-    elif code == 'ch_sim': EASYOCR_LANGS[code] = 'Chinese (Simplified)'
-    elif code == 'ch_tra': EASYOCR_LANGS[code] = 'Chinese (Traditional)'
-    elif code == 'rs_latin': EASYOCR_LANGS[code] = 'Serbian (Latin)'
-    elif code == 'rs_cyrillic': EASYOCR_LANGS[code] = 'Serbian (Cyrillic)'
-    else: EASYOCR_LANGS[code] = code.title()
+OCR_ENGINES = ["EasyOCR", "RapidOCR"]
+TRANS_ENGINES = ["google", "bing", "yandex", "papago", "argos", "caiyun", "itranslate", "lara", "sysTran", "youdao"]
+TRANS_ENGINES_FORMATTED = {k: k.title() for k in TRANS_ENGINES}
+
+# Kamus bahasa yang didukung oleh masing-masing mesin (hasil pengujian langsung)
+ENGINE_SUPPORTED_LANGS = {
+    'google': ['af', 'sq', 'ar', 'hy', 'az', 'eu', 'be', 'bn', 'bs', 'bg', 'ca', 'ceb', 'ny', 'zh-cn', 'zh-tw', 'co', 'hr', 'cs', 'da', 'nl', 'en', 'eo', 'et', 'tl', 'fi', 'fr', 'fy', 'gl', 'ka', 'de', 'el', 'gu', 'ht', 'ha', 'haw', 'hi', 'hmn', 'hu', 'is', 'ig', 'id', 'ga', 'it', 'ja', 'jw', 'kn', 'kk', 'km', 'ko', 'ku', 'ky', 'lo', 'la', 'lv', 'lt', 'lb', 'mk', 'mg', 'ms', 'ml', 'mt', 'mi', 'mr', 'mn', 'my', 'ne', 'no', 'ps', 'fa', 'pl', 'pt', 'pa', 'ro', 'ru', 'sm', 'gd', 'sr', 'st', 'sn', 'sd', 'si', 'sk', 'sl', 'so', 'es', 'su', 'sw', 'sv', 'tg', 'ta', 'te', 'th', 'tr', 'uk', 'ur', 'uz', 'vi', 'cy', 'xh', 'yi', 'yo', 'zu'],
+    'bing': ['af', 'sq', 'ar', 'hy', 'az', 'eu', 'be', 'bn', 'bs', 'bg', 'ca', 'ceb', 'co', 'hr', 'cs', 'da', 'nl', 'en', 'et', 'fi', 'fr', 'fy', 'gl', 'ka', 'de', 'el', 'gu', 'ht', 'ha', 'he', 'hi', 'hu', 'is', 'ig', 'id', 'ga', 'it', 'ja', 'kn', 'kk', 'km', 'ko', 'ku', 'ky', 'lo', 'la', 'lv', 'lt', 'lb', 'mk', 'mg', 'ms', 'ml', 'mt', 'mi', 'mr', 'my', 'ne', 'ps', 'fa', 'pl', 'pt', 'pa', 'ro', 'ru', 'sm', 'st', 'sn', 'sd', 'si', 'sk', 'sl', 'so', 'es', 'su', 'sw', 'sv', 'ta', 'te', 'th', 'tr', 'uk', 'ur', 'uz', 'vi', 'cy', 'xh', 'yo', 'zu'],
+
+    'yandex': ['sq', 'hy', 'az', 'be', 'bg', 'ca', 'zh-cn', 'hr', 'cs', 'da', 'nl', 'en', 'et', 'fi', 'fr', 'de', 'el', 'hu', 'it', 'lv', 'lt', 'mk', 'no', 'pl', 'pt', 'ro', 'ru', 'sr', 'sk', 'sl', 'es', 'sv', 'tr', 'uk'],
+    'papago': ['ar', 'zh-cn', 'zh-tw', 'en', 'fr', 'de', 'hi', 'id', 'it', 'ja', 'ko', 'pt', 'ru', 'es', 'th', 'vi'],
+    'argos': ['ar', 'az', 'bg', 'bn', 'ca', 'cs', 'da', 'de', 'el', 'en', 'eo', 'es', 'et', 'eu', 'fa', 'fi', 'fr', 'ga', 'gl', 'he', 'hi', 'hu', 'id', 'it', 'ja', 'ko', 'ky', 'lt', 'lv', 'ms', 'nl', 'pl', 'pt', 'ro', 'ru', 'sk', 'sl', 'sq', 'sr', 'sv', 'th', 'tl', 'tr', 'uk', 'ur', 'vi', 'zh-cn', 'zh-tw'],
+    'caiyun': ['ar', 'de', 'el', 'en', 'es', 'fr', 'id', 'it', 'ja', 'ko', 'pl', 'pt', 'ru', 'sw', 'th', 'tr', 'vi', 'zh-cn', 'zh-tw'],
+    'itranslate': ['af', 'ar', 'az', 'be', 'bg', 'bn', 'bs', 'ca', 'ceb', 'cs', 'cy', 'da', 'de', 'el', 'en', 'eo', 'es', 'et', 'eu', 'fa', 'fi', 'fr', 'ga', 'gl', 'gu', 'ha', 'he', 'hi', 'hmn', 'hr', 'ht', 'hu', 'hy', 'id', 'ig', 'is', 'it', 'ja', 'jw', 'ka', 'kk', 'km', 'kn', 'ko', 'la', 'lo', 'lt', 'lv', 'mg', 'mi', 'mk', 'ml', 'mn', 'mr', 'ms', 'mt', 'my', 'ne', 'nl', 'no', 'ny', 'pa', 'pl', 'pt', 'ro', 'ru', 'si', 'sk', 'sl', 'so', 'sq', 'sr', 'st', 'su', 'sv', 'sw', 'ta', 'te', 'tg', 'th', 'tl', 'tr', 'uk', 'ur', 'uz', 'vi', 'yi', 'yo', 'zh-cn', 'zh-tw', 'zu'],
+    'lara': ['af', 'ar', 'az', 'be', 'bg', 'bn', 'bs', 'ca', 'ceb', 'cs', 'cy', 'da', 'de', 'el', 'en', 'eo', 'es', 'et', 'eu', 'fa', 'fi', 'fr', 'ga', 'gd', 'gl', 'gu', 'ha', 'he', 'hi', 'hr', 'ht', 'hu', 'hy', 'id', 'ig', 'is', 'it', 'ja', 'ka', 'kk', 'km', 'kn', 'ko', 'ky', 'la', 'lb', 'lo', 'lt', 'lv', 'mg', 'mi', 'mk', 'ml', 'mn', 'mr', 'ms', 'mt', 'my', 'ne', 'nl', 'ny', 'pa', 'pl', 'ps', 'pt', 'ro', 'ru', 'sd', 'si', 'sk', 'sl', 'sm', 'sn', 'so', 'sq', 'sr', 'st', 'su', 'sv', 'sw', 'ta', 'te', 'tg', 'th', 'tl', 'tr', 'uk', 'ur', 'uz', 'vi', 'xh', 'yo', 'zh-cn', 'zh-tw', 'zu'],
+    'sysTran': ['af', 'ar', 'bg', 'bn', 'bs', 'ca', 'cs', 'da', 'de', 'el', 'en', 'es', 'et', 'fa', 'fi', 'fr', 'ga', 'ha', 'he', 'hi', 'hr', 'hu', 'hy', 'id', 'is', 'it', 'ja', 'ka', 'kk', 'ko', 'ku', 'lt', 'lv', 'mk', 'mn', 'ms', 'mt', 'my', 'ne', 'nl', 'no', 'pa', 'pl', 'ps', 'pt', 'ro', 'ru', 'sk', 'sl', 'sq', 'sr', 'sv', 'sw', 'ta', 'tg', 'th', 'tl', 'tr', 'uk', 'ur', 'vi', 'zh-cn'],
+    'youdao': ['ar', 'az', 'be', 'bg', 'bn', 'bs', 'ca', 'ceb', 'co', 'cs', 'cy', 'da', 'de', 'el', 'en', 'eo', 'es', 'et', 'eu', 'fa', 'fi', 'fr', 'fy', 'ga', 'gd', 'gl', 'gu', 'ha', 'haw', 'he', 'hi', 'hmn', 'hr', 'ht', 'hu', 'hy', 'id', 'ig', 'is', 'it', 'ja', 'jw', 'ka', 'kk', 'km', 'kn', 'ko', 'ku', 'ky', 'la', 'lb', 'lo', 'lt', 'lv', 'mg', 'mi', 'mk', 'ml', 'mn', 'mr', 'ms', 'mt', 'my', 'ne', 'nl', 'no', 'ny', 'pa', 'pl', 'ps', 'pt', 'ro', 'ru', 'sd', 'si', 'sk', 'sl', 'sm', 'sn', 'so', 'sq', 'sr', 'st', 'su', 'sv', 'sw', 'ta', 'te', 'tg', 'th', 'tl', 'tr', 'uk', 'ur', 'uz', 'vi', 'xh', 'yi', 'yo', 'zh-cn', 'zh-tw', 'zu']
+}
 
 CONFIG_FILE = "config.json"
 
 # State Global
-reader = None
-translator = Translator()
-current_source_lang = "en"
-current_dest_lang = "id"
+easyocr_reader = None
+rapidocr_engine = None
+
+current_ocr_engine = None
+current_source_lang = None
+current_trans_engine = None
+current_dest_lang = None
 
 def get_default_os_lang():
     try:
@@ -74,35 +115,56 @@ def get_default_os_lang():
     return 'id'
 
 def load_config():
-    global current_source_lang, current_dest_lang
-    default_config = {
-        "source_lang": "en",
-        "dest_lang": get_default_os_lang()
-    }
-    
+    global current_ocr_engine, current_source_lang, current_trans_engine, current_dest_lang
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r') as f:
                 data = json.load(f)
-                default_config.update(data)
+                current_ocr_engine = data.get("ocr_engine")
+                current_source_lang = data.get("source_lang")
+                current_trans_engine = data.get("trans_engine")
+                current_dest_lang = data.get("dest_lang")
         except:
             pass
-            
-    current_source_lang = default_config["source_lang"]
-    current_dest_lang = default_config["dest_lang"]
 
-def save_config(src, dst):
+def save_config(ocr_eng, src, trans_eng, dst):
     try:
         with open(CONFIG_FILE, 'w') as f:
-            json.dump({"source_lang": src, "dest_lang": dst}, f)
+            json.dump({
+                "ocr_engine": ocr_eng,
+                "source_lang": src,
+                "trans_engine": trans_eng,
+                "dest_lang": dst
+            }, f)
     except:
         pass
 
-def init_reader(src_lang):
-    global reader
-    # Kombinasikan dengan 'en' jika bukan 'en' (Sangat direkomendasikan EasyOCR)
-    langs = ['en', src_lang] if src_lang != 'en' else ['en']
-    reader = easyocr.Reader(langs, gpu=False, verbose=False)
+def init_reader(ocr_eng, src_lang):
+    global easyocr_reader, rapidocr_engine
+    
+    # Lazy import di dalam fungsi agar startup instan
+    import easyocr
+    
+    if ocr_eng == "EasyOCR":
+        # Konversi kode bahasa ke format EasyOCR jika perlu
+        easyocr_code = src_lang
+        if src_lang == 'zh-cn': easyocr_code = 'ch_sim'
+        elif src_lang == 'zh-tw': easyocr_code = 'ch_tra'
+        elif src_lang == 'auto': easyocr_code = 'en' # Fallback
+        
+        langs = ['en', easyocr_code] if easyocr_code not in ['en', 'auto'] else ['en']
+        try:
+            easyocr_reader = easyocr.Reader(langs, gpu=False, verbose=False)
+        except Exception as e:
+            # Jika bahasa tidak didukung EasyOCR, fallback ke English
+            print(f"Bahasa {easyocr_code} tidak didukung EasyOCR, fallback ke en. Error: {e}")
+            easyocr_reader = easyocr.Reader(['en'], gpu=False, verbose=False)
+            
+        rapidocr_engine = None
+    elif ocr_eng == "RapidOCR":
+        from rapidocr_onnxruntime import RapidOCR
+        rapidocr_engine = RapidOCR()
+        easyocr_reader = None
 
 # ====================================================
 # UI Components
@@ -219,7 +281,7 @@ class RectangleSelector:
                 
             self.window.destroy() # Hancurkan UI selector
             
-            # Lakukan OCR dan Translate di background thread agar Main UI tidak freeze "Not Responding"
+            # Lakukan OCR dan Translate di background thread agar Main UI tidak freeze
             threading.Thread(target=self.process_ocr_and_translate, args=(img,), daemon=True).start()
         else:
             self.on_escape()
@@ -228,22 +290,39 @@ class RectangleSelector:
         self.window.destroy()
         
     def process_ocr_and_translate(self, img):
-        global translator
+        global current_ocr_engine, current_source_lang, current_trans_engine, current_dest_lang
         try:
-            # Memproses OCR
-            ocr_results = reader.readtext(np.array(img))
-            ocr_text = ' '.join([res[1] for res in ocr_results])
+            import numpy as np
+            import translators as ts
             
-            # Menerjemahkan Teks
+            img_np = np.array(img)
+            ocr_text = ""
+            
+            # 1. Memproses OCR
+            if current_ocr_engine == "EasyOCR" and easyocr_reader:
+                ocr_results = easyocr_reader.readtext(img_np)
+                ocr_text = ' '.join([res[1] for res in ocr_results])
+            elif current_ocr_engine == "RapidOCR" and rapidocr_engine:
+                ocr_results, _ = rapidocr_engine(img_np)
+                if ocr_results:
+                    ocr_text = ' '.join([res[1] for res in ocr_results])
+            
+            # 2. Menerjemahkan Teks
             translated_text = ""
             if ocr_text.strip():
                 try:
-                    # Instansiasi ulang translator untuk menghindari session timeout / bug API Google
-                    translator = Translator()
-                    trans = translator.translate(ocr_text, dest=current_dest_lang)
-                    translated_text = trans.text
+                    # Parameter 'auto' disesuaikan untuk modul translators
+                    src = current_source_lang if current_source_lang != 'auto' else 'auto'
+                    translated_text = ts.translate_text(
+                        query_text=ocr_text, 
+                        translator=current_trans_engine,
+                        from_language=src, 
+                        to_language=current_dest_lang
+                    )
                 except Exception as e:
-                    translated_text = f"Translation failed: {e}"
+                    translated_text = f"Translation failed using {current_trans_engine}:\n{e}"
+            else:
+                translated_text = "No text detected by OCR engine."
             
             # Meneruskan hasil ke UI di main thread
             self.parent.last_ocr_text = ocr_text
@@ -253,7 +332,6 @@ class RectangleSelector:
         except Exception as e:
             print(f"Error pada processing: {e}")
 
-
 # ====================================================
 # Main Application
 # ====================================================
@@ -262,32 +340,50 @@ class App:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Screen Translator - Settings")
-        self.root.geometry("480x350")
+        self.root.geometry("480x450")
         
-        # Jika di-close oleh tombol X
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
-        tk.Label(self.root, text="Global Language Settings", font=('Arial', 14, 'bold')).pack(pady=15)
+        tk.Label(self.root, text="Global Application Settings", font=('Arial', 14, 'bold')).pack(pady=10)
         
         # Peta Balik untuk ID
-        self.src_map = {name: code for code, name in EASYOCR_LANGS.items()}
+        self.src_map = {name: code for code, name in SRC_LANGS_FORMATTED.items()}
         self.dst_map = {name: code for code, name in TRANS_LANGS_FORMATTED.items()}
+        self.trans_eng_map = {name: code for code, name in TRANS_ENGINES_FORMATTED.items()}
         
-        # --- Bahasa Sumber (OCR) ---
-        tk.Label(self.root, text="Screen Text Language (OCR):").pack(anchor='w', padx=25)
+        # --- 1. OCR Engine ---
+        tk.Label(self.root, text="1. OCR Engine (Text Reader):").pack(anchor='w', padx=25)
+        self.ocr_combo = ttk.Combobox(self.root, state="readonly", width=50)
+        self.ocr_combo.pack(padx=25, pady=(0, 10))
+        self.ocr_combo['values'] = OCR_ENGINES
+        if current_ocr_engine in OCR_ENGINES:
+            self.ocr_combo.set(current_ocr_engine)
+            
+        # --- 2. Bahasa Sumber (OCR) ---
+        tk.Label(self.root, text="2. Source Language:").pack(anchor='w', padx=25)
         self.src_combo = ttk.Combobox(self.root, state="readonly", width=50)
-        self.src_combo.pack(padx=25, pady=5)
+        self.src_combo.pack(padx=25, pady=(0, 10))
         self.src_combo['values'] = sorted(list(self.src_map.keys()))
-        
-        default_src_name = EASYOCR_LANGS.get(current_source_lang, "English")
+        default_src_name = SRC_LANGS_FORMATTED.get(current_source_lang, "English")
         if default_src_name in self.src_combo['values']:
             self.src_combo.set(default_src_name)
             
-        # --- Bahasa Tujuan (Terjemahan) ---
-        tk.Label(self.root, text="Translate To:").pack(anchor='w', padx=25, pady=(15,0))
+        # --- 3. Mesin Penerjemah ---
+        tk.Label(self.root, text="3. Translation Engine:").pack(anchor='w', padx=25)
+        self.trans_combo = ttk.Combobox(self.root, state="readonly", width=50)
+        self.trans_combo.pack(padx=25, pady=(0, 10))
+        self.trans_combo['values'] = sorted(list(self.trans_eng_map.keys()))
+        default_trans_name = TRANS_ENGINES_FORMATTED.get(current_trans_engine, "Google")
+        if default_trans_name in self.trans_combo['values']:
+            self.trans_combo.set(default_trans_name)
+            
+        # --- 4. Bahasa Tujuan (Terjemahan) ---
+        tk.Label(self.root, text="4. Target Language:").pack(anchor='w', padx=25)
         self.dst_combo = ttk.Combobox(self.root, state="readonly", width=50)
-        self.dst_combo.pack(padx=25, pady=5)
-        self.dst_combo['values'] = sorted(list(self.dst_map.keys()))
+        self.dst_combo.pack(padx=25, pady=(0, 10))
+        
+        self.trans_combo.bind("<<ComboboxSelected>>", self.on_trans_engine_changed)
+        self._update_target_langs_logic(show_warning=False)
         
         default_dst_name = TRANS_LANGS_FORMATTED.get(current_dest_lang, "Indonesian")
         if default_dst_name in self.dst_combo['values']:
@@ -309,23 +405,63 @@ class App:
         self.root.last_ocr_text = ""
         self.root.last_translation = ""
         self.is_loading = False
+
+    def refresh_ui_from_config(self):
+        """Memperbarui nilai di UI setelah config dimuat dari file"""
+        if current_ocr_engine in OCR_ENGINES:
+            self.ocr_combo.set(current_ocr_engine)
         
-        # Load Model Awal
-        self.load_model_initial()
+        src_name = SRC_LANGS_FORMATTED.get(current_source_lang)
+        if src_name in self.src_combo['values']:
+            self.src_combo.set(src_name)
+            
+        trans_name = TRANS_ENGINES_FORMATTED.get(current_trans_engine)
+        if trans_name in self.trans_combo['values']:
+            self.trans_combo.set(trans_name)
+            
+        # Update target languages berdasarkan engine yang baru dimuat
+        self._update_target_langs_logic(show_warning=False)
+        
+        dst_name = TRANS_LANGS_FORMATTED.get(current_dest_lang)
+        if dst_name in self.dst_combo['values']:
+            self.dst_combo.set(dst_name)
+
+    def on_trans_engine_changed(self, event=None):
+        self._update_target_langs_logic(show_warning=True)
+
+    def _update_target_langs_logic(self, show_warning=False):
+        selected_engine_name = self.trans_combo.get()
+        if not selected_engine_name:
+            return
+            
+        engine_code = self.trans_eng_map.get(selected_engine_name, "google")
+        supported_codes = ENGINE_SUPPORTED_LANGS.get(engine_code, list(self.dst_map.values()))
+        
+        supported_names = sorted([name for name, code in self.dst_map.items() if code in supported_codes])
+        self.dst_combo['values'] = supported_names
+        
+        current_dst_name = self.dst_combo.get()
+        if current_dst_name and current_dst_name not in supported_names:
+            self.dst_combo.set('')
+            if show_warning:
+                messagebox.showinfo("Informasi Bahasa", f"Bahasa '{current_dst_name}' tidak didukung oleh mesin {selected_engine_name}.\nKolom target telah dikosongkan.")
 
     def on_closing(self):
-        # Keluar dari aplikasi seluruhnya
         self.root.destroy()
         os._exit(0)
 
     def load_model_initial(self):
+        if current_ocr_engine is None:
+            self.status_label.config(text="Status: Please configure settings", fg="orange")
+            return
+
         self.is_loading = True
         self.save_btn.config(state=tk.DISABLED)
         self.status_label.config(text="Status: Loading OCR Model... Please wait.", fg="blue")
         
         def _bg_load():
             try:
-                init_reader(current_source_lang)
+                init_reader(current_ocr_engine, current_source_lang)
                 self.root.after(0, self._on_model_loaded_success)
             except Exception as e:
                 self.root.after(0, lambda err=e: self._on_model_loaded_error(err))
@@ -344,25 +480,37 @@ class App:
         messagebox.showerror("Error", f"Failed to load initial model: {e}")
 
     def apply_settings(self):
-        global current_source_lang, current_dest_lang
+        global current_ocr_engine, current_source_lang, current_trans_engine, current_dest_lang
         
-        # Validasi Bahasa
-        src_code = self.src_map[self.src_combo.get()]
-        dst_code = self.dst_map[self.dst_combo.get()]
+        ocr_eng = self.ocr_combo.get()
+        src_name = self.src_combo.get()
+        trans_eng_name = self.trans_combo.get()
+        dst_name = self.dst_combo.get()
+
+        if not all([ocr_eng, src_name, trans_eng_name, dst_name]):
+            messagebox.showwarning("Warning", "Please select all options before saving!")
+            return
+
+        src_code = self.src_map[src_name]
+        trans_eng_code = self.trans_eng_map[trans_eng_name]
+        dst_code = self.dst_map[dst_name]
         
-        save_config(src_code, dst_code)
+        save_config(ocr_eng, src_code, trans_eng_code, dst_code)
+        
+        current_trans_engine = trans_eng_code
         current_dest_lang = dst_code
         
-        # Update OCR Model
-        if src_code != current_source_lang:
+        # Update OCR Model jika diperlukan (misalnya mesin atau bahasa sumber berubah)
+        if ocr_eng != current_ocr_engine or src_code != current_source_lang:
             self.is_loading = True
             self.save_btn.config(state=tk.DISABLED)
-            self.status_label.config(text=f"Status: Downloading/Loading {self.src_combo.get()} model...", fg="blue")
+            self.status_label.config(text=f"Status: Loading {ocr_eng} model...", fg="blue")
             
             def _bg_apply():
                 try:
-                    init_reader(src_code)
-                    global current_source_lang
+                    init_reader(ocr_eng, src_code)
+                    global current_ocr_engine, current_source_lang
+                    current_ocr_engine = ocr_eng
                     current_source_lang = src_code
                     self.root.after(0, self._on_apply_success)
                 except Exception as e:
@@ -376,7 +524,7 @@ class App:
         self.is_loading = False
         self.save_btn.config(state=tk.NORMAL)
         self.status_label.config(text="Status: Model Ready", fg="green")
-        messagebox.showinfo("Success", "Settings saved. Language model successfully downloaded and updated!")
+        messagebox.showinfo("Success", "Settings saved. Engine successfully updated!")
         
     def _on_apply_error(self, e):
         self.is_loading = False
@@ -403,16 +551,25 @@ app_instance = None
 
 def on_hotkey():
     if app_instance and app_instance.root:
-        # Panggil virtual event yang dijalankan di main GUI thread
         app_instance.root.event_generate("<<TriggerHotkey>>", when="tail")
 
 if __name__ == '__main__':
+    # Jalankan GUI secepat mungkin
+    app_instance = App()
+    
+    # Update tampilan agar window langsung muncul sebelum listener dimulai
+    app_instance.root.update()
+    
     load_config()
     
-    # Listener Keyboard Latar Belakang
+    # Refresh UI setelah config dimuat
+    app_instance.refresh_ui_from_config()
+    
+    # Listener Keyboard Latar Belakang (non-blocking)
     hotkey_listener = keyboard.GlobalHotKeys({'<ctrl>+<shift>+<alt>+z': on_hotkey})
     hotkey_listener.start()
     
-    # Jalankan Aplikasi GUI
-    app_instance = App()
+    # Pemuatan model awal (background)
+    app_instance.load_model_initial()
+    
     app_instance.root.mainloop()
