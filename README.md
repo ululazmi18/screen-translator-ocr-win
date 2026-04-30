@@ -16,12 +16,8 @@ Aplikasi ini sangat cocok untuk menerjemahkan komik, game, dokumen gambar, atau 
 - **Dukungan Dual OCR Engine**:
   - **EasyOCR**: Akurasi tinggi untuk berbagai bahasa.
   - **RapidOCR**: Sangat cepat dan ringan.
-- **10+ Mesin Penerjemah Gratis**: Pilih mesin favorit Anda seperti Google, Bing, Yandex, Papago, Argos, Caiyun, iTranslate, Lara, SysTran, dan Youdao.
-- **Dynamic Language Filtering**: Daftar bahasa target otomatis menyesuaikan dengan kemampuan mesin penerjemah yang dipilih.
-- **Startup Instan**: Menggunakan teknik *Lazy Loading* sehingga aplikasi muncul seketika saat dijalankan tanpa menunggu modul berat dimuat.
+- **10 Mesin Penerjemah**: Pilih mesin favorit Anda seperti Google, Bing, Yandex, Papago, Argos, Caiyun, iTranslate, Lara, SysTran, dan Youdao.
 - **Hotkey Global**: Cukup tekan `Ctrl + Shift + Alt + Z` di mana saja untuk memulai seleksi layar.
-- **Antarmuka Minimalis (GUI)**: Pengaturan yang mudah digunakan melalui antarmuka Tkinter dengan status real-time.
-- **Ringan dan Cepat**: Menggunakan Multi-threading agar aplikasi tetap responsif saat memproses data.
 
 ## 🛠️ Prasyarat
 Sebelum menginstal aplikasi ini, pastikan sistem Anda telah terinstal:
